@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { AgGridReact } from "ag-grid-react";
 import "ag-grid-community/styles/ag-theme-material.css";
 import "ag-grid-community/styles/ag-grid.css";
@@ -9,13 +9,15 @@ import { Input } from "@mui/base/Input";
 
 export default function Customerlist() {
   const [customers, setCustomers] = useState([]);
-  const [open, setOpen] = useState();
+  const [open, setOpen] = useState(false);
   const [firstName, setFirstName] = useState();
   const [lastName, setLastName] = useState();
   const [modify, setModify] = useState();
   const [customerId, setCustomerId] = useState();
 
-  useEffect(() => fetchCustomers, []);
+  useEffect(() => {fetchCustomers()}, []);
+
+  const gridRef = useRef();
 
   const handleClose = () => {
     setOpen(false);
@@ -38,10 +40,16 @@ export default function Customerlist() {
     p: 4,
   };
 
-  const fetchCustomers = () => {
-    fetch("http://traineeapp.azurewebsites.net/api/customers")
+  const fetchCustomers = async () => {
+    fetch("https://traineeapp.azurewebsites.net/api/customers")
       .then((response) => response.json())
-      .then((data) => setCustomers(data.content));
+      .then((data) => {
+        console.log(data.content);
+        setCustomers(data.content);
+      })
+      .catch((error) => {
+        console.log(error);
+      });
   };
 
   const addNew = async () => {
@@ -53,8 +61,6 @@ export default function Customerlist() {
       firstname: firstName,
       lastname: lastName,
     };
-
-    console.log("data", data);
 
     try {
       await fetch("https://traineeapp.azurewebsites.net/api/customers", {
@@ -80,7 +86,11 @@ export default function Customerlist() {
 
     setFirstName(customer.firstname);
     setLastName(customer.lastname);
-    setCustomerId(customer.links.find((link) => link.rel === "customer").href);
+    setCustomerId(
+      customer.links
+        .find((link) => link.rel === "customer")
+        .href.replace("http:", "https:")
+    );
 
     handleOpen();
   };
@@ -113,6 +123,7 @@ export default function Customerlist() {
     setFirstName();
     setCustomerId();
     setLastName();
+    handleClose();
   };
 
   const handleAdd = async () => {
@@ -127,9 +138,14 @@ export default function Customerlist() {
     );
     if (confirmed) {
       try {
-        await fetch(customer.links.find((i) => i.rel === "self").href, {
-          method: "DELETE",
-        });
+        await fetch(
+          customer.links
+            .find((i) => i.rel === "self")
+            .href.replace("http:", "https:"),
+          {
+            method: "DELETE",
+          }
+        );
 
         fetchCustomers();
       } catch (error) {
@@ -137,6 +153,28 @@ export default function Customerlist() {
       }
     }
   };
+
+  const onBtnExport = useCallback(() => {
+    if (gridRef.current && gridRef.current.api) {
+      const params = {
+        processCellCallback: ({ value, column }) => {
+          return value;
+        },
+        processHeaderCallback: ({ column }) => {
+          return column.getColDef().field;
+        },
+        columnKeys: list
+          .filter(
+            (col) => col.field !== "Update" && col.headerName !== "Delete"
+          )
+          .map((col) => col.field),
+        columnSeparator: ";"
+      };
+      gridRef.current.api.exportDataAsCsv(params);
+    } else {
+      console.error("Grid reference or API not available yet");
+    }
+  }, []);
 
   const list = [
     {
@@ -164,13 +202,12 @@ export default function Customerlist() {
       headerName: "Delete",
       sortable: false,
       filterable: false,
+      flex: 1,
       cellRenderer: (row) => {
         return <Button onClick={() => onDelClick(row.data)}>Delete</Button>;
       },
     },
   ];
-
-  console.log(customers);
 
   return (
     <>
@@ -178,12 +215,14 @@ export default function Customerlist() {
         className="ag-theme-material"
         style={{ height: "700px", width: "70%", margin: "auto" }}
       >
-        <h1>Customers</h1>
+        <h1>Customers 👥</h1>
         <Button onClick={handleAdd}>Add</Button>
+        <Button onClick={onBtnExport}>Export CSV</Button>
         <AgGridReact
           rowHeight={30}
           columnDefs={list}
           rowData={customers}
+          ref={gridRef}
         ></AgGridReact>
 
         <Modal
@@ -205,7 +244,9 @@ export default function Customerlist() {
               onChange={(e) => setLastName(e.target.value)}
               value={lastName}
             />
+            <Button onClick={resetModal}>Cancel</Button>
             <Button onClick={modify ? updateCustomer : addNew}>Save</Button>
+            
           </Box>
         </Modal>
       </div>

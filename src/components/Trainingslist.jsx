@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { AgGridReact } from "ag-grid-react";
 import "ag-grid-community/styles/ag-theme-material.css";
 import "ag-grid-community/styles/ag-grid.css";
@@ -11,7 +11,7 @@ import MenuItem from "@mui/material/MenuItem";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
-import 'dayjs/locale/fi';
+import "dayjs/locale/fi";
 
 import moment from "moment";
 
@@ -30,7 +30,7 @@ const style = {
 
 export default function Traininglist() {
   const [trainings, setTrainings] = useState([]);
-  const [open, setOpen] = useState();
+  const [open, setOpen] = useState(false);
   const [date, setDate] = useState();
   const [time, setTime] = useState();
   const [duration, setDuration] = useState();
@@ -42,10 +42,12 @@ export default function Traininglist() {
     fetchTrainings();
   }, []);
 
-  useEffect(() => fetchCustomers, []);
+  useEffect(() => {fetchCustomers()}, []);
+
+  const gridRef = useRef();
 
   const fetchCustomers = () => {
-    fetch("http://traineeapp.azurewebsites.net/api/customers")
+    fetch("https://traineeapp.azurewebsites.net/api/customers")
       .then((response) => response.json())
       .then((data) => setCustomers(data.content));
   };
@@ -59,7 +61,6 @@ export default function Traininglist() {
   };
 
   const fetchTrainings = async () => {
-
     let trainings = await fetch(
       "https://traineeapp.azurewebsites.net/api/trainings"
     );
@@ -72,7 +73,7 @@ export default function Traininglist() {
       let training = trainingData.content[i];
 
       let customerResponse = await fetch(
-        training.links.find((link) => link.rel === "customer").href
+        training.links.find((link) => link.rel === "customer").href.replace("http:", "https:")
       );
 
       let customer = await customerResponse.json();
@@ -83,23 +84,26 @@ export default function Traininglist() {
     }
 
     setTrainings(trainingWithCustomers);
+
+    return trainingWithCustomers;
   };
 
   const onDelClick = async (training) => {
     const confirmed = window.confirm(
       "Are you sure you want to delete this customer?"
     );
-    if(confirmed){
-    try {
-      await fetch(training.href, {
-        method: "DELETE",
-      });
+    if (confirmed) {
+      try {
+        await fetch(training.href, {
+          method: "DELETE",
+        });
 
-      fetchTrainings();
-    } catch (error) {
-      console.error("Error deleting training:", error);
+        fetchTrainings();
+      } catch (error) {
+        console.error("Error deleting training:", error);
+      }
     }
-  }};
+  };
 
   const addNew = async () => {
     if (
@@ -120,7 +124,6 @@ export default function Traininglist() {
       customer: customerName,
     };
 
-
     try {
       await fetch("https://traineeapp.azurewebsites.net/api/trainings", {
         method: "POST",
@@ -136,6 +139,30 @@ export default function Traininglist() {
       handleClose();
     }
   };
+
+  const onBtnExport = useCallback(() => {
+    if (gridRef.current && gridRef.current.api) {
+      const params = {
+        processCellCallback: ({ value, column }) => {
+          if (column.getColDef().field === 'date') {
+            return moment(value).format('YYYY-MM-DD HH:mm'); 
+          }
+          return value;
+        },
+        processHeaderCallback: ({ column }) => {
+          return column.getColDef().field; 
+        },
+        columnKeys: list
+          .filter((col) => col.field !== 'Update' && col.headerName !== 'Delete')
+          .map((col) => col.field),
+      };
+      gridRef.current.api.exportDataAsCsv(params);
+    } else {
+      console.error('Error');
+    }
+  }, []);
+  
+  
 
   const list = [
     {
@@ -172,7 +199,7 @@ export default function Traininglist() {
       filter: true,
     },
     {
-      field: "",
+      field: "deleteField",
       headerName: "Delete",
       sortable: false,
       filterable: false,
@@ -196,9 +223,15 @@ export default function Traininglist() {
         className="ag-theme-material"
         style={{ height: "1000px", width: "70%", margin: "auto" }}
       >
-        <h1>Trainings</h1>
+        <h1>Trainings 🏋🏼</h1>
         <Button onClick={handleOpen}>Add</Button>
-        <AgGridReact rowHeight={30} columnDefs={list} rowData={trainings}></AgGridReact>
+        <Button onClick={onBtnExport}>Export CSV</Button>
+        <AgGridReact
+          rowHeight={30}
+          columnDefs={list}
+          rowData={trainings}
+          ref={gridRef}
+        ></AgGridReact>
 
         <Modal
           open={open}
@@ -208,13 +241,13 @@ export default function Traininglist() {
         >
           <Box sx={style}>
             <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="fi">
-                <DateTimePicker
-                  label="Controlled picker"
-                  value={date}
-                  onChange={(newDate) => setDate(newDate)}
-                />
+              <DateTimePicker
+                label="Controlled picker"
+                value={date}
+                onChange={(newDate) => setDate(newDate)}
+              />
             </LocalizationProvider>
-            <Input 
+            <Input
               placeholder="Duration"
               onChange={(e) => setDuration(e.target.value)}
               value={duration}
@@ -247,4 +280,4 @@ export default function Traininglist() {
       </div>
     </>
   );
-}
+};

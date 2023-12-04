@@ -7,6 +7,8 @@ import Row from 'react-bootstrap/Row';
 
 import Customerlist from './components/Customerlist';
 import Traininglist from './components/Trainingslist';
+import Trainingscalendar from './components/Trainingscalendar';
+import Charts from './components/Chart';
 
 function App() {
   const [view, setView] = useState('customerList')
@@ -19,10 +21,16 @@ function App() {
       case 'trainingList':
         return <Traininglist />
         break
+      case 'trainingCalendar':
+        return <Trainingscalendar />
+        break  
+      case 'Charts':
+        return <Charts />
+        break  
       default:
         return <Customerlist />
     }
-  }
+  };
 
   return (
     <>
@@ -34,6 +42,8 @@ function App() {
           <Nav className="me-auto">
             <Nav.Link onClick={() => { setView('trainingList')}}>Trainings</Nav.Link>
             <Nav.Link onClick={() => { setView('customerList')}}>Customers</Nav.Link>
+            <Nav.Link onClick={() => { setView('trainingCalendar')}}>Calendar</Nav.Link>
+            <Nav.Link onClick={() => { setView('Charts')}}>Training information</Nav.Link>
           </Nav>
         </Navbar.Collapse>
       </Container>
@@ -44,6 +54,6 @@ function App() {
     </>
   );
 
-}
+};
 
 export default App;
