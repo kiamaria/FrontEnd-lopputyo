@@ -1,1 +1,1 @@
-Kia Hietamäen Front End opintojakson personal trainer -lopputyö. 
+Front End opintojakson personal trainer -lopputyö. 
